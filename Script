@@ -1,0 +1,72 @@
+#V1.0 Initial script creation aimed to monitor for DNS poisoning, adjusted to include entire \drivers\etc directory
+#V1.1 Intending to implement encryption to csv, potentially write csv to random location. 
+
+Write-Host @"
+File Integrity Monitor
+By Yarinet v1.0
+
+Select From Following Options
+
+X: Establish File Baseline
+Y: Check Baseline
+Z: Exit
+
+"@
+$UserOptionSelect = Read-Host -Prompt "Select Option 'X' 'Y' or 'Z'"
+  Write-Host ""
+
+Function sys32-FileHash-Calculation($sys32filepath) {
+    $sys32filehash = Get-FileHash -Path $sys32filepath -Algorithm SHA256
+      return $sys32filehash
+}
+
+# Option X - Generate hashes from target files and store in centralized location.
+# Option Y - Check baseline against centralized location.
+# Option Z - Exit application close powershell window.
+# No Option Selected - Automatically exit application.
+
+if ($UserOptionSelect -eq "X".ToUpper()) {
+    $Files = Get-ChildItem -Path C:\Windows\System32\drivers\etc
+    $Results = @()
+    foreach ($File in $Files) {
+        $Results += sys32-FileHash-Calculation $File.FullName
+    }
+    $Results | Export-Csv -Path "C:\Windows\baseline.csv" -NoTypeInformation
+    Write-Host "Baseline successfully created and encrypted"
+}
+elseif ($UserOptionSelect -eq "Y".ToUpper()) {
+    $BaselinePath = "C:\Windows\baseline.csv"
+    if (Test-Path $BaselinePath) {
+        $Baseline = Import-Csv -Path $BaselinePath
+        $Files = Get-ChildItem -Path C:\Windows\System32\drivers\etc
+        $Results = @()
+        foreach ($File in $Files) {
+            $CurrentHash = sys32-FileHash-Calculation $File.FullName
+            $BaselineHash = $Baseline | Where-Object { $_.Path -eq $File.FullName }
+            
+            if ($BaselineHash -and $CurrentHash.Hash -eq $BaselineHash.Hash) {
+                Write-Host "[$($File.Name)] - OK - No changes detected :)" -ForegroundColor Green
+            } 
+            elseif ($BaselineHash) {
+                Write-Host "[$($File.Name)] - WARNING - File has been modified!" -ForegroundColor Red
+            }
+            else {
+                Write-Host "[$($File.Name)] - NEW FILE - Unknown file identified!" -ForegroundColor Yellow
+            }
+        }
+    }
+    else {
+        Write-Host "Baseline not established. Select option X to establish encrypted baseline." -ForegroundColor Yellow
+
+    }
+}
+elseif ($UserOptionSelect -eq "Z".ToUpper()) {
+    Write-Host "Exiting File Integrity Monitor..."
+    Start-Sleep -Seconds 2
+    exit
+}
+else {
+    Write-Host "Invalid option selected." -ForegroundColor Red
+    exit
+}
+
