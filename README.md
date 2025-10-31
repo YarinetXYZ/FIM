@@ -1,2 +1,0 @@
-# FIM
-File Integrity Monitor
